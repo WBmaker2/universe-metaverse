@@ -4,7 +4,7 @@
       "$code": {
         ".read": "auth != null && data.child('session/status').val() === 'active'",
         "session": {
-          ".write": "auth != null && (!data.exists() || data.child('teacherUid').val() === auth.uid)",
+          ".write": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && newData.child('teacherUid').val() === auth.uid && (!data.exists() || data.child('teacherUid').val() === auth.uid)",
           ".validate": "newData.hasChildren(['id', 'code', 'title', 'teacherName', 'teacherUid', 'status', 'createdAt', 'expiresAt']) && newData.child('code').val() === $code && (newData.child('status').val() === 'active' || newData.child('status').val() === 'ended')"
         },
         "participants": {
