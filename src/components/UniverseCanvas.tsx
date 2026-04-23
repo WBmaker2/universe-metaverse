@@ -78,6 +78,7 @@ export function UniverseCanvas({
           }
         >();
         private activePlanetId: PlanetTrack["id"] | null = null;
+        private selectedPlanet: PlanetTrack | null = null;
         private lastSentAt = 0;
 
         constructor() {
@@ -105,10 +106,17 @@ export function UniverseCanvas({
             | Record<string, Phaser.Input.Keyboard.Key>
             | undefined;
 
-          this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-            const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-            this.moveTarget = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
-          });
+          this.input.on(
+            "pointerdown",
+            (pointer: Phaser.Input.Pointer, hoveredObjects: Phaser.GameObjects.GameObject[]) => {
+              if (hoveredObjects.length === 0) {
+                this.selectedPlanet = null;
+              }
+
+              const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+              this.moveTarget = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
+            },
+          );
         }
 
         update(_time: number, delta: number) {
@@ -162,7 +170,12 @@ export function UniverseCanvas({
           );
           this.localAvatar.setFlipX(velocity.x < -0.1);
 
-          const activePlanet = getNearestActivePlanet(this.localAvatar.x, this.localAvatar.y);
+          const nearbyPlanet = getNearestActivePlanet(this.localAvatar.x, this.localAvatar.y);
+          if (usingKeyboard && !nearbyPlanet) {
+            this.selectedPlanet = null;
+          }
+
+          const activePlanet = nearbyPlanet ?? this.selectedPlanet;
           const nextPlanetId = activePlanet?.id ?? null;
 
           if (nextPlanetId !== this.activePlanetId) {
@@ -333,6 +346,7 @@ export function UniverseCanvas({
               .setDepth(5);
 
             const clickHandler = () => {
+              this.selectedPlanet = planet;
               callbacksRef.current.onPlanetClick(planet);
               callbacksRef.current.onPlanetFocus(planet);
               this.activePlanetId = planet.id;
