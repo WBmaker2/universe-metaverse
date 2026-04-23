@@ -399,7 +399,7 @@ input:focus {
   display: block;
   color: var(--accent);
   font-family: Arial, sans-serif;
-  font-size: clamp(3rem, 8vw, 5.5rem) !important;
+  font-size: clamp(3rem, 7vw, 5rem) !important;
   line-height: 0.96;
 }
 
@@ -407,6 +407,61 @@ input:focus {
   margin: 0;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.session-share-layout {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.session-code-block {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.qr-card {
+  display: grid;
+  width: min(220px, 100%);
+  justify-self: start;
+  justify-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 12px;
+}
+
+.qr-card img,
+.qr-placeholder {
+  width: min(152px, 100%);
+  aspect-ratio: 1;
+  border-radius: 6px;
+}
+
+.qr-card img {
+  display: block;
+  background: #fff;
+  padding: 8px;
+}
+
+.qr-placeholder {
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  color: var(--muted);
+}
+
+.qr-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .notice {
@@ -699,6 +754,13 @@ input:focus {
     height: min(420px, 70svh);
     min-height: 320px;
   }
+
+}
+
+@media (min-width: 1500px) {
+  .session-share-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(148px, 176px);
+  }
 }
 
 @media (max-width: 640px) {
@@ -740,6 +802,10 @@ input:focus {
 
   .avatar-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .qr-card {
+    width: 100%;
   }
 
   .room-header {

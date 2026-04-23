@@ -5,9 +5,11 @@ import {
   hasFirebaseConfig,
   signInTeacherWithGoogle,
 } from "@/lib/firebase/client";
-import { Clipboard, LogIn, Plus, Share2 } from "lucide-react";
+import { Clipboard, LogIn, Maximize2, Plus, QrCode, Share2 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import Image from "next/image";
+import QRCode from "qrcode";
+import { useEffect, useMemo, useState } from "react";
 import type { ClassroomSession } from "@/lib/types";
 
 export function TeacherConsole() {
@@ -16,6 +18,7 @@ export function TeacherConsole() {
   const [session, setSession] = useState<ClassroomSession | null>(null);
   const [notice, setNotice] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState("");
   const firebaseReady = hasFirebaseConfig();
 
   const joinUrl = useMemo(() => {
@@ -25,6 +28,36 @@ export function TeacherConsole() {
 
     return `${window.location.origin}/join?code=${session.code}`;
   }, [session]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (!joinUrl) return;
+
+    void QRCode.toDataURL(joinUrl, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 280,
+      color: {
+        dark: "#111827",
+        light: "#ffffff",
+      },
+    })
+      .then((dataUrl) => {
+        if (isCurrent) {
+          setQrDataUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setQrDataUrl("");
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [joinUrl]);
 
   async function handleGoogleLogin() {
     if (!firebaseReady) {
@@ -39,6 +72,7 @@ export function TeacherConsole() {
   async function handleCreateSession() {
     setIsCreating(true);
     setNotice("");
+    setQrDataUrl("");
 
     try {
       const nextSession = firebaseReady
@@ -62,6 +96,80 @@ export function TeacherConsole() {
     const text = `세션코드: ${session.code}\n입장 링크: ${joinUrl}`;
     await navigator.clipboard?.writeText(text);
     setNotice("세션코드와 입장 링크를 복사했습니다.");
+  }
+
+  function openLargeQrCode() {
+    if (!session || !joinUrl || !qrDataUrl) {
+      setNotice("QR코드를 아직 준비하는 중입니다.");
+      return;
+    }
+
+    const popup = window.open("", `universe-qr-${session.code}`, "popup,width=560,height=720");
+    if (!popup) {
+      setNotice("팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 눌러주세요.");
+      return;
+    }
+
+    const escapedCode = escapeHtml(session.code);
+    const escapedJoinUrl = escapeHtml(joinUrl);
+    const escapedQrDataUrl = escapeHtml(qrDataUrl);
+
+    popup.document.open();
+    popup.document.write(`<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>우주 음악 메타버스 입장 QR</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background: #050711;
+        color: #f8fafc;
+        font-family: Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      }
+      main {
+        width: min(92vw, 480px);
+        display: grid;
+        gap: 18px;
+        justify-items: center;
+        padding: 28px;
+        text-align: center;
+      }
+      p { margin: 0; color: #b8c2d6; line-height: 1.55; }
+      .label { color: #f6c76b; font-weight: 800; }
+      .code { color: #f6c76b; font-size: clamp(3rem, 14vw, 5.5rem); font-weight: 900; line-height: 0.95; }
+      img { width: min(82vw, 360px); border-radius: 8px; background: #fff; padding: 12px; }
+      .url { overflow-wrap: anywhere; }
+      button {
+        min-height: 44px;
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 8px;
+        background: #f6c76b;
+        color: #1c1303;
+        padding: 0 18px;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="label">학생 입장 코드</p>
+      <strong class="code">${escapedCode}</strong>
+      <img src="${escapedQrDataUrl}" alt="${escapedCode} 입장 QR코드" />
+      <p class="url">${escapedJoinUrl}</p>
+      <button type="button" onclick="window.print()">인쇄</button>
+    </main>
+  </body>
+</html>`);
+    popup.document.close();
+    popup.focus();
   }
 
   return (
@@ -114,9 +222,29 @@ export function TeacherConsole() {
         <div className="session-output" aria-live="polite">
           {session ? (
             <>
-              <p className="eyebrow">학생 입장 코드</p>
-              <strong className="session-code">{session.code}</strong>
-              <p className="join-link">{joinUrl}</p>
+              <div className="session-share-layout">
+                <div className="session-code-block">
+                  <p className="eyebrow">학생 입장 코드</p>
+                  <strong className="session-code">{session.code}</strong>
+                  <p className="join-link">{joinUrl}</p>
+                </div>
+                <div className="qr-card" aria-label="학생 입장 QR코드">
+                  {qrDataUrl ? (
+                    <Image
+                      src={qrDataUrl}
+                      alt={`${session.code} 입장 QR코드`}
+                      width={152}
+                      height={152}
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="qr-placeholder" aria-hidden="true">
+                      <QrCode size={42} />
+                    </div>
+                  )}
+                  <p>휴대폰 카메라로 바로 입장</p>
+                </div>
+              </div>
               <div className="button-row">
                 <button className="secondary-action" type="button" onClick={copyJoinInfo}>
                   <Clipboard size={19} aria-hidden="true" />
@@ -126,6 +254,10 @@ export function TeacherConsole() {
                   <Share2 size={19} aria-hidden="true" />
                   입장 화면
                 </Link>
+                <button className="secondary-action" type="button" onClick={openLargeQrCode}>
+                  <Maximize2 size={19} aria-hidden="true" />
+                  QR 크게 보기
+                </button>
               </div>
             </>
           ) : (
@@ -141,6 +273,25 @@ export function TeacherConsole() {
       {notice ? <p className="notice">{notice}</p> : null}
     </section>
   );
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return character;
+    }
+  });
 }
 
 async function createLocalSession(input: { teacherName: string; title: string }) {
