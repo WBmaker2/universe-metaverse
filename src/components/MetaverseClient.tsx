@@ -2,8 +2,14 @@
 
 import { ChatPanel } from "@/components/ChatPanel";
 import { UniverseCanvas } from "@/components/UniverseCanvas";
+import {
+  hasFirebaseConfig,
+  sendFirebaseChatMessage,
+  subscribeFirebaseRoom,
+  updateFirebaseParticipant,
+} from "@/lib/firebase/client";
 import { PLANET_BY_ID } from "@/lib/planets";
-import type { JoinResponse, Participant, PlanetTrack, RoomState } from "@/lib/types";
+import type { ChatMessage, JoinResponse, Participant, PlanetTrack, RoomState } from "@/lib/types";
 import { usePlanetAudio } from "@/hooks/usePlanetAudio";
 import { Headphones, LogOut, Music2, Volume2, Wifi } from "lucide-react";
 import Link from "next/link";
@@ -38,6 +44,7 @@ function readStoredJoinInfo(code: string) {
 }
 
 export function MetaverseClient({ code }: MetaverseClientProps) {
+  const firebaseReady = hasFirebaseConfig();
   const [joinInfo, setJoinInfo] = useState<JoinResponse | null>(null);
   const [joinInfoStatus, setJoinInfoStatus] = useState<"checking" | "ready">("checking");
   const [roomState, setRoomState] = useState<RoomState | null>(null);
@@ -106,6 +113,29 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
       return;
     }
 
+    if (firebaseReady) {
+      const unsubscribe = subscribeFirebaseRoom(
+        code,
+        (state) => {
+          if (isMountedRef.current) {
+            setRoomState(state);
+            setError("");
+          }
+        },
+        (caught) => {
+          if (isMountedRef.current) {
+            setError(
+              caught instanceof Error ? caught.message : "세션 상태를 불러오지 못했습니다.",
+            );
+          }
+        },
+      );
+
+      return () => {
+        unsubscribe?.();
+      };
+    }
+
     const firstFetch = window.setTimeout(() => {
       void fetchState().catch((caught) => {
         if (isMountedRef.current) {
@@ -122,7 +152,7 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
       window.clearTimeout(firstFetch);
       window.clearInterval(timer);
     };
-  }, [fetchState, joinInfo]);
+  }, [code, fetchState, firebaseReady, joinInfo]);
 
   const handleMove = useCallback(
     (snapshot: MoveSnapshot) => {
@@ -131,11 +161,6 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
       }
 
       const now = performance.now();
-      if (now - lastMoveSentRef.current < 160) {
-        return;
-      }
-      lastMoveSentRef.current = now;
-
       setRoomState((current) => {
         if (!current) {
           return current;
@@ -156,22 +181,31 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
         };
       });
 
-      void fetch("/api/sessions", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "update-participant",
-          code,
-          participantId: joinInfo.participant.id,
-          x: snapshot.x,
-          y: snapshot.y,
-          activePlanetId: snapshot.activePlanetId,
-        }),
-      }).catch(() => undefined);
+      if (now - lastMoveSentRef.current < 1000) {
+        return;
+      }
+      lastMoveSentRef.current = now;
+
+      if (firebaseReady) {
+        void updateFirebaseParticipant(code, joinInfo.participant.id, snapshot).catch(() => undefined);
+      } else {
+        void fetch("/api/sessions", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "update-participant",
+            code,
+            participantId: joinInfo.participant.id,
+            x: snapshot.x,
+            y: snapshot.y,
+            activePlanetId: snapshot.activePlanetId,
+          }),
+        }).catch(() => undefined);
+      }
     },
-    [code, joinInfo],
+    [code, firebaseReady, joinInfo],
   );
 
   const handlePlanetFocus = useCallback((planet: PlanetTrack | null) => {
@@ -181,6 +215,70 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
   const handlePlanetClick = useCallback((planet: PlanetTrack) => {
     setFocusedPlanet(planet);
   }, []);
+
+  const handleChatSent = useCallback(
+    (message: ChatMessage) => {
+      setRoomState((current) => {
+        const alreadyAdded = current?.messages.some(
+          (currentMessage) => currentMessage.id === message.id,
+        );
+
+        if (!current || alreadyAdded) {
+          return current;
+        }
+
+        return {
+          ...current,
+          messages: [...current.messages, message].slice(-80),
+        };
+      });
+
+      if (!firebaseReady) {
+        void fetchState().catch(() => undefined);
+      }
+    },
+    [fetchState, firebaseReady],
+  );
+
+  const handleSendChat = useCallback(
+    async (body: string) => {
+      if (!joinInfo || !self) {
+        throw new Error("참가자 정보를 찾을 수 없습니다.");
+      }
+
+      if (firebaseReady) {
+        return sendFirebaseChatMessage({
+          code,
+          participantId: joinInfo.participant.id,
+          displayName: self.displayName,
+          body,
+        });
+      }
+
+      const response = await fetch("/api/sessions", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "chat",
+          code,
+          participantId: joinInfo.participant.id,
+          body,
+          recoveryState: roomState,
+        }),
+      });
+
+      const data = (await response.json()) as { error?: string; message?: ChatMessage };
+
+      if (!response.ok || !data.message) {
+        throw new Error(data.error ?? "메시지를 보낼 수 없습니다.");
+      }
+
+      return data.message;
+    },
+    [code, firebaseReady, joinInfo, roomState, self],
+  );
 
   if (joinInfoStatus === "checking") {
     return (
@@ -281,10 +379,9 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
         </div>
 
         <ChatPanel
-          code={code}
-          participantId={self.id}
           messages={roomState?.messages ?? []}
-          onSent={() => void fetchState()}
+          onSend={handleSendChat}
+          onSent={handleChatSent}
         />
       </section>
 

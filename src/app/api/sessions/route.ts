@@ -1,9 +1,10 @@
-import type { PlanetId } from "@/lib/types";
+import type { PlanetId, RoomState } from "@/lib/types";
 import {
   addChatMessage,
   createSession,
   getRoomState,
   joinRoom,
+  recoverRoomState,
   updateParticipant,
 } from "@/server/room-store";
 
@@ -19,6 +20,7 @@ type SessionActionBody = {
   x?: number;
   y?: number;
   activePlanetId?: PlanetId | null;
+  recoveryState?: RoomState;
 };
 
 function missingSessionResponse() {
@@ -60,6 +62,10 @@ export async function PATCH(request: Request) {
 
   if (!body.code) {
     return Response.json({ error: "세션코드가 필요합니다." }, { status: 400 });
+  }
+
+  if (body.recoveryState) {
+    recoverRoomState(body.recoveryState, body.code);
   }
 
   if (body.action === "join") {

@@ -1,6 +1,7 @@
 "use client";
 
 import { AVATARS, DEFAULT_AVATAR_ID, type AvatarId } from "@/lib/avatars";
+import { hasFirebaseConfig, joinFirebaseRoom } from "@/lib/firebase/client";
 import { LogIn, Music2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,29 +24,11 @@ export function JoinForm() {
 
     try {
       const normalizedCode = code.trim().toUpperCase();
-      const response = await fetch("/api/sessions", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "join",
-          code: normalizedCode,
-          name,
-          avatarId,
-        }),
-      });
+      const data = hasFirebaseConfig()
+        ? await joinFirebaseRoom(normalizedCode, name, avatarId)
+        : await joinLocalRoom(normalizedCode, name, avatarId);
 
-      const data = (await response.json()) as JoinResponse | { error: string };
-
-      if (!response.ok || "error" in data) {
-        throw new Error("error" in data ? data.error : "입장에 실패했습니다.");
-      }
-
-      localStorage.setItem(
-        `universe:participant:${data.session.code}`,
-        JSON.stringify(data),
-      );
+      localStorage.setItem(`universe:participant:${data.session.code}`, JSON.stringify(data));
       router.push(`/room/${data.session.code}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "입장 중 문제가 생겼습니다.");
@@ -96,13 +79,7 @@ export function JoinForm() {
                 style={{ "--avatar-accent": avatar.accent } as React.CSSProperties}
                 type="button"
               >
-                <Image
-                  alt=""
-                  height={84}
-                  src={avatar.idlePath}
-                  unoptimized
-                  width={63}
-                />
+                <Image alt="" height={84} src={avatar.idlePath} unoptimized width={63} />
                 <span>{avatar.label}</span>
               </button>
             ))}
@@ -121,4 +98,27 @@ export function JoinForm() {
       </form>
     </section>
   );
+}
+
+async function joinLocalRoom(normalizedCode: string, name: string, avatarId: AvatarId) {
+  const response = await fetch("/api/sessions", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      action: "join",
+      code: normalizedCode,
+      name,
+      avatarId,
+    }),
+  });
+
+  const data = (await response.json()) as JoinResponse | { error: string };
+
+  if (!response.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : "입장에 실패했습니다.");
+  }
+
+  return data;
 }

@@ -14,7 +14,7 @@
 6. 행성에서 일정 거리 이상 멀어지면 음악 정지
 7. 같은 세션에 접속한 학생 이름/위치 표시
 8. 세션 채팅과 기본 비속어 필터
-9. Supabase/Google OAuth 연결을 위한 환경변수와 SQL 스키마 초안
+9. Firebase Auth/Realtime Database 연결을 위한 환경변수와 보안 규칙 초안
 
 ## 기술 선택
 
@@ -22,10 +22,10 @@
 - 2D 메타버스 렌더러: Phaser
 - UI: React DOM 오버레이
 - 로컬 MVP 상태: Next.js Route Handler + 메모리 저장소
-- 운영 확장: Supabase Auth, Postgres, Realtime Presence, Realtime Broadcast
+- 운영 확장: Firebase Auth, Realtime Database, RTDB presence/update stream
 - 오디오: 브라우저 HTMLAudioElement 기반 MP3 재생
 
-초기 버전은 Supabase 프로젝트 없이도 로컬에서 바로 시연할 수 있게 만듭니다. 이후 Supabase 환경변수를 연결하면 교사 Google 로그인, 학생 익명 인증, 영속 DB, 실시간 Presence/Broadcast로 확장하는 구조를 유지합니다.
+초기 버전은 Firebase 프로젝트 없이도 로컬에서 바로 시연할 수 있게 만듭니다. 이후 Firebase 환경변수를 연결하면 교사 Google 로그인, 학생 익명 인증, 영속 DB, 실시간 위치/채팅 동기화로 확장하는 구조를 유지합니다.
 
 ## 아키텍처 원칙
 
@@ -34,7 +34,7 @@
 - React는 입장 흐름, 채팅, 현재 재생 상태, 교사용 정보 패널을 담당합니다.
 - 행성/음원/거리 기준은 안정적인 manifest 데이터로 관리합니다.
 - 채팅 필터는 클라이언트와 서버 양쪽에서 적용 가능한 순수 함수로 둡니다.
-- 위치 동기화는 너무 자주 보내지 않도록 짧은 throttle을 둡니다.
+- 위치 동기화는 1초 단위로 보내고, 화면에서는 보간으로 부드럽게 표시합니다.
 
 ## 데이터 모델 초안
 
@@ -97,7 +97,7 @@
 
 - 교사 세션 만들기
 - 학생 세션 입장
-- 앱의 현재 상태와 Supabase 연결 여부 표시
+- 앱의 현재 상태와 Firebase 연결 여부 표시
 
 ### 교사 화면
 
@@ -135,8 +135,8 @@
 ## 리스크와 대응
 
 - 브라우저 자동재생 제한: 학생 입장 버튼 클릭 후 오디오 객체를 활성화합니다.
-- Supabase 미연결 환경: 로컬 메모리 기반 API로 MVP를 먼저 완성합니다.
-- 실시간 안정성: MVP는 폴링 기반으로 검증하고, 운영 버전은 Presence/Broadcast로 교체합니다.
+- Firebase 미연결 환경: 로컬 메모리 기반 API로 MVP를 먼저 완성합니다.
+- 실시간 안정성: 운영 버전은 Firebase Realtime Database 구독으로 세션/채팅/위치를 동기화합니다.
 - 음원 권한: 제공된 교육용 음원은 프로젝트 내부 public asset으로 복사하되, 실제 배포 전 사용 권한을 확인해야 합니다.
 - 학생 개인정보: 학생은 이름만 입력하고, 운영 버전에서도 이메일 로그인을 요구하지 않습니다.
 
@@ -151,6 +151,5 @@
 7. Phaser 우주 캔버스 구현
 8. 행성 접근 감지와 음악 재생 구현
 9. 참가자 위치 동기화와 채팅 UI 구현
-10. Supabase SQL 스키마와 환경변수 예시 추가
+10. Firebase Realtime Database 규칙과 환경변수 예시 추가
 11. 빌드 및 수동 스모크 테스트
-

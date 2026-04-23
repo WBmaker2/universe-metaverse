@@ -1,11 +1,11 @@
 "use client";
 
-import { hasSupabaseConfig } from "@/lib/supabase/browser";
+import { hasFirebaseConfig } from "@/lib/firebase/client";
 import { GraduationCap, LogIn } from "lucide-react";
 import Link from "next/link";
 
 export function HomeActions() {
-  const supabaseReady = hasSupabaseConfig();
+  const firebaseReady = hasFirebaseConfig();
 
   return (
     <div className="home-actions">
@@ -20,7 +20,7 @@ export function HomeActions() {
         </Link>
       </div>
       <p className="mode-note">
-        현재 모드: {supabaseReady ? "Supabase 연결 준비됨" : "로컬 데모"}
+        현재 모드: {firebaseReady ? "Firebase 실시간 DB" : "로컬 데모"}
       </p>
     </div>
   );

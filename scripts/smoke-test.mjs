@@ -65,7 +65,6 @@ const storedJoinInfo = await page.evaluate((sessionCode) => {
   return stored ? JSON.parse(stored) : null;
 }, code);
 await page.screenshot({ path: "artifacts/metaverse-smoke.png", fullPage: true });
-await browser.close();
 
 if (!canvasBox || canvasBox.width < 300 || canvasBox.height < 300) {
   throw new Error(`Canvas did not render at expected size: ${JSON.stringify(canvasBox)}`);
@@ -86,6 +85,48 @@ if (!bodyText.includes(targetPlanet.name) || !bodyText.includes(targetPlanet.tra
 if (!bodyText.includes("안녕 지구")) {
   throw new Error("Chat message did not appear in the room panel.");
 }
+
+const recoveryCode = `R${code.slice(1)}`;
+const recoveryResponse = await page.request.patch(`${baseUrl}/api/sessions`, {
+  data: {
+    action: "chat",
+    code: recoveryCode,
+    participantId: "participant-recovery",
+    body: "복구 테스트",
+    recoveryState: {
+      session: {
+        id: "session-recovery",
+        code: recoveryCode,
+        title: "복구 테스트 수업",
+        teacherName: "김선생님",
+        status: "active",
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+      participants: [
+        {
+          id: "participant-recovery",
+          sessionCode: recoveryCode,
+          displayName: "복구학생",
+          avatarId: "robot",
+          color: "#7dd3fc",
+          x: 1800,
+          y: 1200,
+          activePlanetId: null,
+          joinedAt: new Date().toISOString(),
+          lastSeenAt: new Date().toISOString(),
+        },
+      ],
+      messages: [],
+    },
+  },
+});
+
+if (!recoveryResponse.ok()) {
+  throw new Error(`Chat recovery failed: ${recoveryResponse.status()}`);
+}
+
+await browser.close();
 
 if (errors.length) {
   throw new Error(`Browser errors: ${errors.join(" | ")}`);

@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "auth != null && data.child('session/status').val() === 'active'",
+        "session": {
+          ".write": "auth != null && (!data.exists() || data.child('teacherUid').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['id', 'code', 'title', 'teacherName', 'teacherUid', 'status', 'createdAt', 'expiresAt']) && newData.child('code').val() === $code && (newData.child('status').val() === 'active' || newData.child('status').val() === 'ended')"
+        },
+        "participants": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($code).child('session').child('status').val() === 'active'",
+            ".validate": "newData.hasChildren(['id', 'sessionCode', 'displayName', 'avatarId', 'color', 'x', 'y', 'joinedAt', 'lastSeenAt']) && newData.child('id').val() === $uid && newData.child('sessionCode').val() === $code && newData.child('displayName').isString() && newData.child('displayName').val().length <= 16 && newData.child('x').isNumber() && newData.child('y').isNumber()"
+          }
+        },
+        "messages": {
+          "$messageId": {
+            ".write": "auth != null && newData.child('participantId').val() === auth.uid && root.child('rooms').child($code).child('participants').child(auth.uid).exists()",
+            ".validate": "newData.hasChildren(['id', 'sessionCode', 'participantId', 'displayName', 'body', 'createdAt', 'moderationStatus']) && newData.child('id').val() === $messageId && newData.child('sessionCode').val() === $code && newData.child('body').isString() && newData.child('body').val().length > 0 && newData.child('body').val().length <= 180 && newData.child('moderationStatus').val() === 'allowed'"
+          }
+        }
+      }
+    }
+  }
+}

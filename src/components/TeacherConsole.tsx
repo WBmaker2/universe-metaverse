@@ -1,6 +1,10 @@
 "use client";
 
-import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase/browser";
+import {
+  createFirebaseSession,
+  hasFirebaseConfig,
+  signInTeacherWithGoogle,
+} from "@/lib/firebase/client";
 import { Clipboard, LogIn, Plus, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -12,7 +16,7 @@ export function TeacherConsole() {
   const [session, setSession] = useState<ClassroomSession | null>(null);
   const [notice, setNotice] = useState("");
   const [isCreating, setIsCreating] = useState(false);
-  const supabaseReady = hasSupabaseConfig();
+  const firebaseReady = hasFirebaseConfig();
 
   const joinUrl = useMemo(() => {
     if (!session || typeof window === "undefined") {
@@ -23,19 +27,13 @@ export function TeacherConsole() {
   }, [session]);
 
   async function handleGoogleLogin() {
-    const supabase = getSupabaseBrowserClient();
-
-    if (!supabase) {
-      setNotice("Supabase 환경변수를 연결하면 Google 로그인을 사용할 수 있습니다.");
+    if (!firebaseReady) {
+      setNotice("Firebase 환경변수를 연결하면 Google 로그인을 사용할 수 있습니다.");
       return;
     }
 
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/teacher`,
-      },
-    });
+    await signInTeacherWithGoogle();
+    setNotice("Google 로그인이 완료되었습니다.");
   }
 
   async function handleCreateSession() {
@@ -43,23 +41,11 @@ export function TeacherConsole() {
     setNotice("");
 
     try {
-      const response = await fetch("/api/sessions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          teacherName,
-          title,
-        }),
-      });
+      const nextSession = firebaseReady
+        ? await createFirebaseSession({ teacherName, title })
+        : await createLocalSession({ teacherName, title });
 
-      if (!response.ok) {
-        throw new Error("세션 생성에 실패했습니다.");
-      }
-
-      const data = (await response.json()) as { session: ClassroomSession };
-      setSession(data.session);
+      setSession(nextSession);
       setNotice("세션이 생성되었습니다. 학생들에게 코드를 공유해주세요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세션 생성 중 문제가 생겼습니다.");
@@ -84,8 +70,8 @@ export function TeacherConsole() {
         <p className="eyebrow">교사용 콘솔</p>
         <h1 id="teacher-title">수업 세션을 만듭니다</h1>
         <p>
-          지금은 로컬 데모 세션을 생성합니다. Supabase 연결 후에는 Google OAuth와
-          영속 세션으로 확장됩니다.
+          Firebase 연결 시 Google 로그인과 영속 세션을 사용하고, 연결 전에는 로컬
+          데모 세션으로 체험합니다.
         </p>
       </div>
 
@@ -120,7 +106,7 @@ export function TeacherConsole() {
             </button>
             <button className="secondary-action" type="button" onClick={handleGoogleLogin}>
               <LogIn size={20} aria-hidden="true" />
-              {supabaseReady ? "Google 로그인" : "로그인 연결 전"}
+              {firebaseReady ? "Google 로그인" : "로그인 연결 전"}
             </button>
           </div>
         </form>
@@ -155,4 +141,21 @@ export function TeacherConsole() {
       {notice ? <p className="notice">{notice}</p> : null}
     </section>
   );
+}
+
+async function createLocalSession(input: { teacherName: string; title: string }) {
+  const response = await fetch("/api/sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error("세션 생성에 실패했습니다.");
+  }
+
+  const data = (await response.json()) as { session: ClassroomSession };
+  return data.session;
 }

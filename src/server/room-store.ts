@@ -22,6 +22,7 @@ type MemoryStore = {
 const SESSION_HOURS = 8;
 const STALE_PARTICIPANT_MS = 2 * 60 * 1000;
 const MAX_MESSAGES = 80;
+const MAX_PARTICIPANTS = 64;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PARTICIPANT_COLORS = [
   "#7dd3fc",
@@ -83,6 +84,38 @@ function sanitizeDisplayName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 16) || "학생";
 }
 
+function sanitizeColor(color: unknown, fallback: string) {
+  return typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
+function safeIsoDate(value: unknown, fallback = isoNow()) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  return Number.isNaN(Date.parse(value)) ? fallback : value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPlanetId(value: unknown): value is PlanetId {
+  return typeof value === "string" && PLANETS.some((planet) => planet.id === value);
+}
+
+function mergeRoomMessages(existing: ChatMessage[], incoming: ChatMessage[]) {
+  const byId = new Map<string, ChatMessage>();
+
+  for (const message of [...existing, ...incoming]) {
+    byId.set(message.id, message);
+  }
+
+  return [...byId.values()]
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+    .slice(-MAX_MESSAGES);
+}
+
 function pruneRoom(room: RoomRecord) {
   const cutoff = Date.now() - STALE_PARTICIPANT_MS;
 
@@ -91,6 +124,118 @@ function pruneRoom(room: RoomRecord) {
       room.participants.delete(participantId);
     }
   }
+}
+
+export function recoverRoomState(snapshot: unknown, expectedCodeInput?: string) {
+  if (!isRecord(snapshot) || !isRecord(snapshot.session)) {
+    return false;
+  }
+
+  const code = normalizeCode(String(snapshot.session.code ?? ""));
+  const expectedCode = expectedCodeInput ? normalizeCode(expectedCodeInput) : code;
+
+  if (!code || code !== expectedCode) {
+    return false;
+  }
+
+  const session: ClassroomSession = {
+    id: typeof snapshot.session.id === "string" ? snapshot.session.id : crypto.randomUUID(),
+    code,
+    title:
+      typeof snapshot.session.title === "string" && snapshot.session.title.trim()
+        ? snapshot.session.title.trim().slice(0, 32)
+        : "우주 음악 감상 수업",
+    teacherName:
+      typeof snapshot.session.teacherName === "string" && snapshot.session.teacherName.trim()
+        ? snapshot.session.teacherName.trim().slice(0, 18)
+        : "선생님",
+    status: snapshot.session.status === "ended" ? "ended" : "active",
+    createdAt: safeIsoDate(snapshot.session.createdAt),
+    expiresAt: safeIsoDate(
+      snapshot.session.expiresAt,
+      addHours(new Date(), SESSION_HOURS).toISOString(),
+    ),
+  };
+
+  const room =
+    store.rooms.get(code) ??
+    ({
+      session,
+      participants: new Map<string, Participant>(),
+      messages: [],
+    } satisfies RoomRecord);
+
+  const rawParticipants = Array.isArray(snapshot.participants) ? snapshot.participants : [];
+  for (const [index, rawParticipant] of rawParticipants.slice(0, MAX_PARTICIPANTS).entries()) {
+    if (!isRecord(rawParticipant) || typeof rawParticipant.id !== "string") {
+      continue;
+    }
+
+    const existing = room.participants.get(rawParticipant.id);
+    const participant: Participant = {
+      id: rawParticipant.id,
+      sessionCode: code,
+      displayName: sanitizeDisplayName(String(rawParticipant.displayName ?? "학생")),
+      avatarId: normalizeAvatarId(rawParticipant.avatarId),
+      color: sanitizeColor(
+        rawParticipant.color,
+        PARTICIPANT_COLORS[index % PARTICIPANT_COLORS.length],
+      ),
+      x: Math.min(
+        WORLD_SIZE.width,
+        Math.max(
+          0,
+          typeof rawParticipant.x === "number" ? rawParticipant.x : WORLD_SIZE.width / 2,
+        ),
+      ),
+      y: Math.min(
+        WORLD_SIZE.height,
+        Math.max(
+          0,
+          typeof rawParticipant.y === "number" ? rawParticipant.y : WORLD_SIZE.height / 2,
+        ),
+      ),
+      activePlanetId: isPlanetId(rawParticipant.activePlanetId)
+        ? rawParticipant.activePlanetId
+        : null,
+      joinedAt: safeIsoDate(rawParticipant.joinedAt),
+      lastSeenAt: safeIsoDate(rawParticipant.lastSeenAt),
+    };
+
+    if (!existing || Date.parse(participant.lastSeenAt) >= Date.parse(existing.lastSeenAt)) {
+      room.participants.set(participant.id, participant);
+    }
+  }
+
+  const participantIds = new Set(room.participants.keys());
+  const rawMessages = Array.isArray(snapshot.messages) ? snapshot.messages : [];
+  const messages: ChatMessage[] = [];
+
+  for (const rawMessage of rawMessages.slice(-MAX_MESSAGES)) {
+    if (
+      !isRecord(rawMessage) ||
+      typeof rawMessage.id !== "string" ||
+      typeof rawMessage.participantId !== "string" ||
+      typeof rawMessage.body !== "string" ||
+      !participantIds.has(rawMessage.participantId)
+    ) {
+      continue;
+    }
+
+    messages.push({
+      id: rawMessage.id,
+      sessionCode: code,
+      participantId: rawMessage.participantId,
+      displayName: sanitizeDisplayName(String(rawMessage.displayName ?? "학생")),
+      body: rawMessage.body.trim().slice(0, 180),
+      createdAt: safeIsoDate(rawMessage.createdAt),
+      moderationStatus: rawMessage.moderationStatus === "blocked" ? "blocked" : "allowed",
+    });
+  }
+
+  room.messages = mergeRoomMessages(room.messages, messages);
+  store.rooms.set(code, room);
+  return true;
 }
 
 export function createSession(input: { teacherName?: string; title?: string }) {

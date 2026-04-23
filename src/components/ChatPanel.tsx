@@ -6,13 +6,12 @@ import { MessageCircle, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 
 type ChatPanelProps = {
-  code: string;
-  participantId: string;
   messages: ChatMessage[];
-  onSent: () => void;
+  onSend: (body: string) => Promise<ChatMessage>;
+  onSent: (message: ChatMessage) => void;
 };
 
-export function ChatPanel({ code, participantId, messages, onSent }: ChatPanelProps) {
+export function ChatPanel({ messages, onSend, onSent }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [notice, setNotice] = useState("");
   const latestMessages = useMemo(() => messages.slice(-40), [messages]);
@@ -27,28 +26,13 @@ export function ChatPanel({ code, participantId, messages, onSent }: ChatPanelPr
       return;
     }
 
-    const response = await fetch("/api/sessions", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        action: "chat",
-        code,
-        participantId,
-        body: moderation.sanitized,
-      }),
-    });
-
-    const data = (await response.json()) as { error?: string };
-
-    if (!response.ok) {
-      setNotice(data.error ?? "메시지를 보낼 수 없습니다.");
-      return;
+    try {
+      const message = await onSend(moderation.sanitized);
+      setText("");
+      onSent(message);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "메시지를 보낼 수 없습니다.");
     }
-
-    setText("");
-    onSent();
   }
 
   return (

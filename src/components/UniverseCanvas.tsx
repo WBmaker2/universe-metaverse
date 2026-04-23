@@ -84,6 +84,9 @@ export function UniverseCanvas({
             avatar: Phaser.GameObjects.Sprite;
             marker: Phaser.GameObjects.Ellipse;
             label: Phaser.GameObjects.Text;
+            avatarId: AvatarId;
+            targetX: number;
+            targetY: number;
           }
         >();
         private activePlanetId: PlanetTrack["id"] | null = null;
@@ -219,6 +222,7 @@ export function UniverseCanvas({
             });
           }
 
+          this.updatePeerPositions(delta);
           this.updateSpeechBubblePositions();
         }
 
@@ -231,19 +235,6 @@ export function UniverseCanvas({
               0.45,
             );
             this.localName?.setText(nextSelf.displayName);
-
-            const drift = Phaser.Math.Distance.Between(
-              this.localAvatar.x,
-              this.localAvatar.y,
-              nextSelf.x,
-              nextSelf.y,
-            );
-
-            if (drift > 120) {
-              this.localAvatar.setPosition(nextSelf.x, nextSelf.y);
-              this.localMarker?.setPosition(nextSelf.x, nextSelf.y - 3);
-              this.localName?.setPosition(nextSelf.x, nextSelf.y - 72);
-            }
           }
 
           const nextPeerIds = new Set(nextPeers.map((peer) => peer.id));
@@ -261,15 +252,24 @@ export function UniverseCanvas({
             const existing = this.peerObjects.get(peer.id);
             if (existing) {
               const peerAvatarId = normalizeAvatarId(peer.avatarId);
-              existing.avatar.setPosition(peer.x, peer.y);
+              existing.avatarId = peerAvatarId;
               existing.avatar.setTexture(this.avatarTextureKey(peerAvatarId, "idle"));
-              existing.marker.setPosition(peer.x, peer.y - 3);
               existing.marker.setFillStyle(
                 Phaser.Display.Color.HexStringToColor(peer.color).color,
                 0.36,
               );
-              existing.label.setPosition(peer.x, peer.y - 68);
               existing.label.setText(peer.displayName);
+              existing.targetX = peer.x;
+              existing.targetY = peer.y;
+
+              if (
+                Phaser.Math.Distance.Between(existing.avatar.x, existing.avatar.y, peer.x, peer.y) >
+                520
+              ) {
+                existing.avatar.setPosition(peer.x, peer.y);
+                existing.marker.setPosition(peer.x, peer.y - 3);
+                existing.label.setPosition(peer.x, peer.y - 68);
+              }
               continue;
             }
 
@@ -301,7 +301,14 @@ export function UniverseCanvas({
               .setOrigin(0.5)
               .setDepth(8);
 
-            this.peerObjects.set(peer.id, { avatar, marker, label });
+            this.peerObjects.set(peer.id, {
+              avatar,
+              marker,
+              label,
+              avatarId: peerAvatarId,
+              targetX: peer.x,
+              targetY: peer.y,
+            });
           }
 
           this.updateSpeechBubblePositions();
@@ -394,6 +401,33 @@ export function UniverseCanvas({
             const position = this.getParticipantPosition(bubble.participantId);
             if (position) {
               bubble.container.setPosition(position.x, position.y - 104);
+            }
+          }
+        }
+
+        private updatePeerPositions(delta: number) {
+          const smoothing = 1 - Math.exp(-delta / 220);
+
+          for (const objects of this.peerObjects.values()) {
+            const nextX = Phaser.Math.Linear(objects.avatar.x, objects.targetX, smoothing);
+            const nextY = Phaser.Math.Linear(objects.avatar.y, objects.targetY, smoothing);
+            const movedDistance = Phaser.Math.Distance.Between(
+              objects.avatar.x,
+              objects.avatar.y,
+              nextX,
+              nextY,
+            );
+
+            objects.avatar.setPosition(nextX, nextY);
+            if (Math.abs(objects.targetX - objects.avatar.x) > 1.5) {
+              objects.avatar.setFlipX(objects.targetX < objects.avatar.x);
+            }
+            objects.marker.setPosition(nextX, nextY - 3);
+            objects.label.setPosition(nextX, nextY - 68);
+            if (movedDistance > 0.18) {
+              objects.avatar.setTexture(this.avatarTextureKey(objects.avatarId, "walk"));
+            } else {
+              objects.avatar.setTexture(this.avatarTextureKey(objects.avatarId, "idle"));
             }
           }
         }

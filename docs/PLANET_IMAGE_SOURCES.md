@@ -12,7 +12,8 @@ Local runtime files are transparent PNG derivatives created from the downloaded 
 
 Local files:
 - Mercury: `public/images/planets/mercury.png`
-  - Source: https://www.nasa.gov/image-article/mercury-color/
+  - Source: https://science.nasa.gov/photojournal/enhanced-color-mercury-map/
+  - Note: circular sprite derived from the NASA/MESSENGER global enhanced-color map so the planet appears as a full round disk.
 - Venus: `public/images/planets/venus.png`
   - Source: https://science.nasa.gov/resource/computer-simulated-global-view-of-venus/
   - Note: computer-simulated global view based on NASA/JPL radar data.
@@ -25,6 +26,7 @@ Local files:
 - Saturn: `public/images/planets/saturn.png`
   - Source: https://science.nasa.gov/image-detail/pia05380-saturn-with-rings-16x9/
 - Uranus: `public/images/planets/uranus.png`
-  - Source: https://science.nasa.gov/resource/uranus/
+  - Source: https://science.nasa.gov/photojournal/uranus-in-true-and-false-color/
+  - Note: cropped from the true-color Voyager 2 disk on the source image.
 - Neptune: `public/images/planets/neptune.png`
   - Source: https://science.nasa.gov/photojournal/neptune-5/

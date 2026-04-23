@@ -21,22 +21,27 @@ npm run dev
 - 학생 이름표와 위치 표시
 - 세션 채팅
 - 기본 비속어 필터
-- Supabase 연결을 위한 환경변수와 SQL 스키마 초안
+- Firebase Realtime Database 연결을 위한 클라이언트 설정과 보안 규칙 초안
 
 ## 로컬 데모 방식
 
-현재 MVP는 Supabase 프로젝트 없이도 체험할 수 있도록 Next.js Route Handler와 서버 메모리 저장소를 사용합니다. 개발 서버를 재시작하면 생성된 세션과 채팅 기록은 초기화됩니다.
+현재 MVP는 Firebase 프로젝트 없이도 체험할 수 있도록 Next.js Route Handler와 서버 메모리 저장소를 사용합니다. 개발 서버를 재시작하면 생성된 세션과 채팅 기록은 초기화됩니다.
 
-## Supabase 연결
+## Firebase 연결
 
 `.env.example`을 참고해 `.env.local`을 만들고 값을 채워주세요.
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_DATABASE_URL=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
 ```
 
-데이터베이스 스키마 초안은 [supabase/schema.sql](/Users/kimhongnyeon/Dev/codex/universe-metaverse/supabase/schema.sql)에 있습니다.
+Firebase Console에서 Authentication의 Google 로그인과 익명 로그인을 켜고,
+Realtime Database를 만든 뒤 [firebase/database.rules.json](/Users/kimhongnyeon/Dev/codex/universe-metaverse/firebase/database.rules.json)
+규칙을 적용해주세요.
 
 ## 음원
 
