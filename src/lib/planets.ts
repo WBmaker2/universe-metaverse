@@ -5,12 +5,23 @@ export const WORLD_SIZE = {
   height: 1400,
 };
 
+const DEFAULT_AUDIO_BASE_URL =
+  process.env.NODE_ENV === "production"
+    ? "https://cdn.jsdelivr.net/gh/WBmaker2/universe-metaverse@main/public/audio"
+    : "/audio";
+
+const AUDIO_BASE_URL = process.env.NEXT_PUBLIC_AUDIO_BASE_URL ?? DEFAULT_AUDIO_BASE_URL;
+
+function audioPath(fileName: string) {
+  return `${AUDIO_BASE_URL}/${fileName}`;
+}
+
 export const PLANETS: PlanetTrack[] = [
   {
     id: "mercury",
     name: "수성",
     trackTitle: "행성 중 제3곡 수성",
-    audioPath: "/audio/mercury.mp3",
+    audioPath: audioPath("mercury.mp3"),
     color: "#d7c0a1",
     accent: "#fff3d1",
     x: 370,
@@ -23,7 +34,7 @@ export const PLANETS: PlanetTrack[] = [
     id: "venus",
     name: "금성",
     trackTitle: "행성 중 제2곡 금성",
-    audioPath: "/audio/venus.mp3",
+    audioPath: audioPath("venus.mp3"),
     color: "#f2c27d",
     accent: "#ffe2aa",
     x: 650,
@@ -36,7 +47,7 @@ export const PLANETS: PlanetTrack[] = [
     id: "earth",
     name: "지구",
     trackTitle: "푸른 바다 만들기",
-    audioPath: "/audio/earth-blue-sea.mp3",
+    audioPath: audioPath("earth-blue-sea.mp3"),
     color: "#3e9fe8",
     accent: "#8de2cf",
     x: 930,
@@ -49,7 +60,7 @@ export const PLANETS: PlanetTrack[] = [
     id: "mars",
     name: "화성",
     trackTitle: "행성 중 제1곡 화성",
-    audioPath: "/audio/mars.mp3",
+    audioPath: audioPath("mars.mp3"),
     color: "#c4513b",
     accent: "#ff9a77",
     x: 1190,
@@ -62,7 +73,7 @@ export const PLANETS: PlanetTrack[] = [
     id: "jupiter",
     name: "목성",
     trackTitle: "행성 중 제4곡 목성",
-    audioPath: "/audio/jupiter.mp3",
+    audioPath: audioPath("jupiter.mp3"),
     color: "#d49a63",
     accent: "#ffd0a0",
     x: 1450,
@@ -75,7 +86,7 @@ export const PLANETS: PlanetTrack[] = [
     id: "saturn",
     name: "토성",
     trackTitle: "행성 중 제5곡 토성",
-    audioPath: "/audio/saturn.mp3",
+    audioPath: audioPath("saturn.mp3"),
     color: "#d9c58d",
     accent: "#fff0ba",
     x: 1670,
@@ -88,7 +99,7 @@ export const PLANETS: PlanetTrack[] = [
     id: "uranus",
     name: "천왕성",
     trackTitle: "행성 중 제6곡 천왕성",
-    audioPath: "/audio/uranus.mp3",
+    audioPath: audioPath("uranus.mp3"),
     color: "#7cdad7",
     accent: "#c8fffb",
     x: 1870,
@@ -101,7 +112,7 @@ export const PLANETS: PlanetTrack[] = [
     id: "neptune",
     name: "해왕성",
     trackTitle: "행성 중 제7곡 해왕성",
-    audioPath: "/audio/neptune.mp3",
+    audioPath: audioPath("neptune.mp3"),
     color: "#557be8",
     accent: "#aabfff",
     x: 2040,
