@@ -15,6 +15,7 @@ export function ChatPanel({ messages, onSend, onSent }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [notice, setNotice] = useState("");
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const latestMessages = useMemo(() => messages.slice(-40), [messages]);
   const latestMessageId = latestMessages.at(-1)?.id ?? "";
 
@@ -49,6 +50,12 @@ export function ChatPanel({ messages, onSend, onSent }: ChatPanelProps) {
     }
   }
 
+  function keepInputVisible() {
+    window.setTimeout(() => {
+      inputRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 120);
+  }
+
   return (
     <aside className="chat-panel" aria-label="세션 채팅">
       <div className="panel-title">
@@ -72,6 +79,10 @@ export function ChatPanel({ messages, onSend, onSent }: ChatPanelProps) {
       <form className="chat-form" onSubmit={sendMessage}>
         <input
           aria-label="채팅 입력"
+          autoComplete="off"
+          inputMode="text"
+          onFocus={keepInputVisible}
+          ref={inputRef}
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder="수업에 어울리는 말로 입력"

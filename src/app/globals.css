@@ -602,10 +602,65 @@ input:focus {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: #050711;
+  isolation: isolate;
 }
 
 .universe-canvas canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+.virtual-joystick {
+  position: absolute;
+  z-index: 20;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: max(20px, env(safe-area-inset-left));
+  display: none;
+  width: 132px;
+  height: 132px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(5, 7, 17, 0.58);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+  touch-action: none;
+  user-select: none;
+}
+
+.virtual-joystick::before {
+  position: absolute;
+  inset: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  content: "";
+}
+
+.virtual-joystick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.56), transparent 34%),
+    var(--accent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+  transition: transform 100ms ease;
+}
+
+.virtual-joystick.active .virtual-joystick-knob {
+  transition: none;
+}
+
+@media (pointer: coarse) {
+  .virtual-joystick {
+    display: block;
+  }
 }
 
 .listening-panel {
@@ -736,25 +791,46 @@ input:focus {
   }
 }
 
-@media (max-width: 940px) {
-  .home-details,
-  .teacher-grid,
+@media (max-width: 1100px), (pointer: coarse) and (max-width: 1366px) {
+  .metaverse-shell {
+    min-height: 100dvh;
+    overflow: auto;
+  }
+
+  .room-header {
+    min-height: auto;
+  }
+
   .metaverse-stage {
     height: auto;
+    min-height: calc(100dvh - 64px);
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
     overflow: visible;
   }
 
   .universe-canvas {
     grid-row: auto;
-    min-height: 62svh;
+    min-height: min(62dvh, 520px);
+  }
+
+  .listening-panel {
+    max-height: none;
   }
 
   .chat-panel {
-    height: min(420px, 70svh);
-    min-height: 320px;
+    height: min(430px, 46dvh);
+    min-height: 300px;
   }
+}
 
+@media (max-width: 940px) {
+  .home-details,
+  .teacher-grid {
+    height: auto;
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
 }
 
 @media (min-width: 1500px) {
@@ -819,6 +895,38 @@ input:focus {
   }
 
   .universe-canvas {
-    min-height: 58svh;
+    min-height: min(54dvh, 420px);
+  }
+
+  .virtual-joystick {
+    bottom: max(14px, env(safe-area-inset-bottom));
+    left: max(14px, env(safe-area-inset-left));
+    width: 112px;
+    height: 112px;
+  }
+
+  .virtual-joystick-knob {
+    width: 46px;
+  }
+
+  .chat-panel {
+    height: min(390px, 52dvh);
+    min-height: 300px;
+    padding: 14px;
+  }
+
+  .chat-form {
+    grid-template-columns: minmax(0, 1fr) 52px;
+    gap: 10px;
+  }
+
+  .chat-form input {
+    min-height: 52px;
+    font-size: 1rem;
+  }
+
+  .chat-form button {
+    width: 52px;
+    height: 52px;
   }
 }

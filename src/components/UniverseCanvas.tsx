@@ -3,7 +3,7 @@
 import { AVATARS, normalizeAvatarId, type AvatarId } from "@/lib/avatars";
 import { PLANETS, WORLD_SIZE, getNearestActivePlanet } from "@/lib/planets";
 import type { ChatMessage, Participant, PlanetTrack } from "@/lib/types";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type MoveSnapshot = {
   x: number;
@@ -25,6 +25,18 @@ type SceneBridge = {
   syncMessages: (messages: ChatMessage[]) => void;
 };
 
+type JoystickVector = {
+  x: number;
+  y: number;
+  active: boolean;
+};
+
+type JoystickKnob = {
+  x: number;
+  y: number;
+  active: boolean;
+};
+
 export function UniverseCanvas({
   self,
   peers,
@@ -38,6 +50,10 @@ export function UniverseCanvas({
   const participantsRef = useRef({ self, peers });
   const messagesRef = useRef(messages);
   const sceneRef = useRef<SceneBridge | null>(null);
+  const joystickRef = useRef<HTMLDivElement | null>(null);
+  const joystickPointerIdRef = useRef<number | null>(null);
+  const joystickVectorRef = useRef<JoystickVector>({ x: 0, y: 0, active: false });
+  const [joystickKnob, setJoystickKnob] = useState<JoystickKnob>({ x: 0, y: 0, active: false });
 
   useEffect(() => {
     callbacksRef.current = { onMove, onPlanetFocus, onPlanetClick };
@@ -157,6 +173,7 @@ export function UniverseCanvas({
           const seconds = delta / 1000;
           const speed = 270;
           const velocity = new Phaser.Math.Vector2(0, 0);
+          const joystick = joystickVectorRef.current;
           const usingKeyboard =
             this.cursors?.left.isDown ||
             this.cursors?.right.isDown ||
@@ -166,6 +183,8 @@ export function UniverseCanvas({
             this.keys?.D.isDown ||
             this.keys?.W.isDown ||
             this.keys?.S.isDown;
+          const usingJoystick =
+            !usingKeyboard && joystick.active && Math.hypot(joystick.x, joystick.y) > 0.08;
 
           if (usingKeyboard) {
             this.moveTarget = null;
@@ -173,6 +192,11 @@ export function UniverseCanvas({
             if (this.cursors?.right.isDown || this.keys?.D.isDown) velocity.x += 1;
             if (this.cursors?.up.isDown || this.keys?.W.isDown) velocity.y -= 1;
             if (this.cursors?.down.isDown || this.keys?.S.isDown) velocity.y += 1;
+          } else if (joystick.active) {
+            this.moveTarget = null;
+            if (usingJoystick) {
+              velocity.set(joystick.x, joystick.y);
+            }
           } else if (this.moveTarget) {
             velocity.set(
               this.moveTarget.x - this.localAvatar.x,
@@ -201,7 +225,7 @@ export function UniverseCanvas({
           this.localAvatar.setFlipX(velocity.x < -0.1);
 
           const nearbyPlanet = getNearestActivePlanet(this.localAvatar.x, this.localAvatar.y);
-          if (usingKeyboard && !nearbyPlanet) {
+          if ((usingKeyboard || usingJoystick) && !nearbyPlanet) {
             this.selectedPlanet = null;
           }
 
@@ -656,5 +680,79 @@ export function UniverseCanvas({
     };
   }, []);
 
-  return <div className="universe-canvas" ref={containerRef} aria-label="2D 우주 메타버스" />;
+  const resetJoystick = useCallback(() => {
+    joystickPointerIdRef.current = null;
+    joystickVectorRef.current = { x: 0, y: 0, active: false };
+    setJoystickKnob({ x: 0, y: 0, active: false });
+  }, []);
+
+  const updateJoystick = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const joystick = joystickRef.current;
+    if (!joystick) {
+      return;
+    }
+
+    const bounds = joystick.getBoundingClientRect();
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+    const maxDistance = Math.min(bounds.width, bounds.height) * 0.34;
+    const rawX = event.clientX - centerX;
+    const rawY = event.clientY - centerY;
+    const distance = Math.hypot(rawX, rawY);
+    const ratio = distance > maxDistance ? maxDistance / distance : 1;
+    const x = rawX * ratio;
+    const y = rawY * ratio;
+
+    joystickVectorRef.current = {
+      x: x / maxDistance,
+      y: y / maxDistance,
+      active: true,
+    };
+    setJoystickKnob({ x, y, active: true });
+  }, []);
+
+  return (
+    <div className="universe-canvas" ref={containerRef} aria-label="2D 우주 메타버스">
+      <div
+        aria-label="이동 조이스틱"
+        className={joystickKnob.active ? "virtual-joystick active" : "virtual-joystick"}
+        onPointerCancel={resetJoystick}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          joystickPointerIdRef.current = event.pointerId;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          updateJoystick(event);
+        }}
+        onPointerMove={(event) => {
+          if (joystickPointerIdRef.current !== event.pointerId) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          updateJoystick(event);
+        }}
+        onPointerUp={(event) => {
+          if (joystickPointerIdRef.current !== event.pointerId) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          resetJoystick();
+        }}
+        onLostPointerCapture={resetJoystick}
+        ref={joystickRef}
+        role="group"
+      >
+        <span
+          className="virtual-joystick-knob"
+          style={{
+            transform: `translate(calc(-50% + ${joystickKnob.x}px), calc(-50% + ${joystickKnob.y}px))`,
+          }}
+        />
+      </div>
+    </div>
+  );
 }
