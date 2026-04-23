@@ -3,7 +3,7 @@
 import { moderateChatMessage } from "@/lib/moderation";
 import type { ChatMessage } from "@/lib/types";
 import { MessageCircle, Send } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type ChatPanelProps = {
   messages: ChatMessage[];
@@ -14,7 +14,21 @@ type ChatPanelProps = {
 export function ChatPanel({ messages, onSend, onSent }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [notice, setNotice] = useState("");
+  const messageListRef = useRef<HTMLDivElement | null>(null);
   const latestMessages = useMemo(() => messages.slice(-40), [messages]);
+  const latestMessageId = latestMessages.at(-1)?.id ?? "";
+
+  useEffect(() => {
+    const messageList = messageListRef.current;
+    if (!messageList) {
+      return;
+    }
+
+    messageList.scrollTo({
+      top: messageList.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [latestMessageId]);
 
   async function sendMessage(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,7 +56,7 @@ export function ChatPanel({ messages, onSend, onSent }: ChatPanelProps) {
         <h2>채팅</h2>
       </div>
 
-      <div className="message-list" aria-live="polite">
+      <div className="message-list" aria-live="polite" ref={messageListRef}>
         {latestMessages.length > 0 ? (
           latestMessages.map((message) => (
             <p className="message-row" key={message.id}>

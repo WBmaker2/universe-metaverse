@@ -493,6 +493,7 @@ input:focus {
 
 .metaverse-shell {
   min-height: 100svh;
+  overflow: hidden;
   background: var(--bg);
 }
 
@@ -529,17 +530,19 @@ input:focus {
 .metaverse-stage {
   position: relative;
   display: grid;
-  min-height: calc(100svh - 64px);
+  height: calc(100svh - 64px);
+  min-height: 0;
   grid-template-columns: minmax(0, 1fr) 340px;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, auto) minmax(0, 1fr);
   gap: 14px;
+  overflow: hidden;
   padding: 14px;
 }
 
 .universe-canvas {
   position: relative;
   grid-row: 1 / span 2;
-  min-height: calc(100svh - 92px);
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -595,9 +598,11 @@ input:focus {
 
 .chat-panel {
   display: grid;
+  height: 100%;
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   gap: 12px;
+  overflow: hidden;
   padding: 18px;
 }
 
@@ -680,7 +685,9 @@ input:focus {
   .home-details,
   .teacher-grid,
   .metaverse-stage {
+    height: auto;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .universe-canvas {
@@ -689,6 +696,7 @@ input:focus {
   }
 
   .chat-panel {
+    height: min(420px, 70svh);
     min-height: 320px;
   }
 }
@@ -741,7 +749,6 @@ input:focus {
   }
 
   .metaverse-stage {
-    min-height: calc(100svh - 95px);
     padding: 10px;
   }
 
