@@ -99,26 +99,38 @@ export async function createFirebaseSession(input: { teacherName: string; title:
     clients.auth.currentUser && !clients.auth.currentUser.isAnonymous
       ? clients.auth.currentUser
       : await signInTeacherWithGoogle();
-  const code = await createUniqueSessionCode(clients.db);
-  const now = new Date();
-  const session: FirebaseSession = {
-    id: crypto.randomUUID(),
-    code,
-    title: sanitizeText(input.title, 32) || "우주 음악 감상 수업",
-    teacherName: sanitizeText(input.teacherName, 18) || user.displayName || "선생님",
-    teacherUid: user.uid,
-    status: "active",
-    createdAt: now.toISOString(),
-    expiresAt: addHours(now, SESSION_HOURS).toISOString(),
-  };
 
-  await set(ref(clients.db, `rooms/${code}/session`), session);
-  return sessionToClassroomSession(session);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = generateSessionCode();
+    const now = new Date();
+    const session: FirebaseSession = {
+      id: crypto.randomUUID(),
+      code,
+      title: sanitizeText(input.title, 32) || "우주 음악 감상 수업",
+      teacherName: sanitizeText(input.teacherName, 18) || user.displayName || "선생님",
+      teacherUid: user.uid,
+      status: "active",
+      createdAt: now.toISOString(),
+      expiresAt: addHours(now, SESSION_HOURS).toISOString(),
+    };
+
+    try {
+      await set(ref(clients.db, `rooms/${code}/session`), session);
+      return sessionToClassroomSession(session);
+    } catch (error) {
+      if (!isPermissionDeniedError(error) || attempt === 4) {
+        throw toFirebaseWriteError(error);
+      }
+    }
+  }
+
+  throw new Error("세션 코드를 생성하지 못했습니다.");
 }
 
 export async function joinFirebaseRoom(codeInput: string, name: string, avatarId: AvatarId) {
   const clients = requireFirebaseClients();
   const code = normalizeCode(codeInput);
+  const user = await ensureFirebaseUser(clients.auth);
   const sessionSnapshot = await get(ref(clients.db, `rooms/${code}/session`));
 
   if (!sessionSnapshot.exists()) {
@@ -130,7 +142,6 @@ export async function joinFirebaseRoom(codeInput: string, name: string, avatarId
     throw new Error("입장할 수 있는 세션을 찾지 못했습니다.");
   }
 
-  const user = await ensureFirebaseUser(clients.auth);
   const participantsSnapshot = await get(ref(clients.db, `rooms/${code}/participants`));
   const participantCount = participantsSnapshot.exists()
     ? Object.keys(participantsSnapshot.val() as Record<string, unknown>).length
@@ -258,18 +269,6 @@ async function ensureFirebaseUser(auth: Auth): Promise<User> {
   return credential.user;
 }
 
-async function createUniqueSessionCode(db: Database) {
-  for (let attempt = 0; attempt < 14; attempt += 1) {
-    const code = generateSessionCode();
-    const snapshot = await get(ref(db, `rooms/${code}/session`));
-    if (!snapshot.exists()) {
-      return code;
-    }
-  }
-
-  return crypto.randomUUID().slice(0, 6).toUpperCase();
-}
-
 function generateSessionCode() {
   let code = "";
   for (let index = 0; index < 6; index += 1) {
@@ -277,6 +276,31 @@ function generateSessionCode() {
   }
 
   return code;
+}
+
+function isPermissionDeniedError(error: unknown) {
+  if (!isRecord(error)) {
+    return false;
+  }
+
+  const code = typeof error.code === "string" ? error.code.toLowerCase() : "";
+  const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+
+  return (
+    code.includes("permission_denied") ||
+    code.includes("permission-denied") ||
+    message.includes("permission denied")
+  );
+}
+
+function toFirebaseWriteError(error: unknown) {
+  if (isPermissionDeniedError(error)) {
+    return new Error(
+      "Firebase 권한이 거부되었습니다. Google 로그인 상태와 Realtime Database 규칙을 확인해주세요.",
+    );
+  }
+
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function createStartPosition(index: number) {
