@@ -15,6 +15,7 @@ export type PlanetTrack = {
   name: string;
   trackTitle: string;
   audioPath: string;
+  imagePath: string;
   color: string;
   accent: string;
   x: number;

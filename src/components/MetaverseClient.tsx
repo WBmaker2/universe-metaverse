@@ -231,6 +231,7 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
         <UniverseCanvas
           self={self}
           peers={peers}
+          messages={roomState?.messages ?? []}
           onMove={handleMove}
           onPlanetFocus={handlePlanetFocus}
           onPlanetClick={handlePlanetClick}

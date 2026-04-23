@@ -31,8 +31,32 @@ await page.waitForSelector("canvas", { timeout: 8000 });
 await page.waitForTimeout(1200);
 await page.getByRole("button", { name: /오디오 켜기/ }).click();
 await page.waitForTimeout(300);
-await page.locator("canvas").click({ position: { x: 240, y: 257 } });
+const initialJoinInfo = await page.evaluate((sessionCode) => {
+  const stored = localStorage.getItem(`universe:participant:${sessionCode}`);
+  return stored ? JSON.parse(stored) : null;
+}, code);
+const canvasBoxBeforeClick = await page.locator("canvas").boundingBox();
+const targetPlanet = {
+  name: "화성",
+  trackTitle: "행성 중 제1곡 화성",
+  x: 2300,
+  y: 1050,
+};
+
+if (!canvasBoxBeforeClick || !initialJoinInfo?.participant) {
+  throw new Error("Could not calculate a planet click position.");
+}
+
+await page.locator("canvas").click({
+  position: {
+    x: targetPlanet.x - initialJoinInfo.participant.x + canvasBoxBeforeClick.width / 2,
+    y: targetPlanet.y - initialJoinInfo.participant.y + canvasBoxBeforeClick.height / 2,
+  },
+});
 await page.waitForTimeout(700);
+await page.getByLabel("채팅 입력").fill("안녕 지구");
+await page.getByLabel("메시지 보내기").click();
+await page.getByText("안녕 지구").waitFor({ timeout: 5000 });
 
 const canvasBox = await page.locator("canvas").boundingBox();
 const bodyText = await page.locator("body").innerText();
@@ -55,8 +79,12 @@ if (storedJoinInfo?.participant?.avatarId !== "robot") {
   throw new Error("Selected avatar was not saved for the participant.");
 }
 
-if (!bodyText.includes("지구") || !bodyText.includes("푸른 바다 만들기")) {
-  throw new Error("Planet click did not update listening panel to Earth.");
+if (!bodyText.includes(targetPlanet.name) || !bodyText.includes(targetPlanet.trackTitle)) {
+  throw new Error(`Planet click did not update listening panel to ${targetPlanet.name}.`);
+}
+
+if (!bodyText.includes("안녕 지구")) {
+  throw new Error("Chat message did not appear in the room panel.");
 }
 
 if (errors.length) {

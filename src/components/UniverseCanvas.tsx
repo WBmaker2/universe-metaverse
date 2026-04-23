@@ -2,7 +2,7 @@
 
 import { AVATARS, normalizeAvatarId, type AvatarId } from "@/lib/avatars";
 import { PLANETS, WORLD_SIZE, getNearestActivePlanet } from "@/lib/planets";
-import type { Participant, PlanetTrack } from "@/lib/types";
+import type { ChatMessage, Participant, PlanetTrack } from "@/lib/types";
 import { useEffect, useRef } from "react";
 
 type MoveSnapshot = {
@@ -14,6 +14,7 @@ type MoveSnapshot = {
 type UniverseCanvasProps = {
   self: Participant;
   peers: Participant[];
+  messages: ChatMessage[];
   onMove: (snapshot: MoveSnapshot) => void;
   onPlanetFocus: (planet: PlanetTrack | null) => void;
   onPlanetClick: (planet: PlanetTrack) => void;
@@ -21,11 +22,13 @@ type UniverseCanvasProps = {
 
 type SceneBridge = {
   syncParticipants: (self: Participant, peers: Participant[]) => void;
+  syncMessages: (messages: ChatMessage[]) => void;
 };
 
 export function UniverseCanvas({
   self,
   peers,
+  messages,
   onMove,
   onPlanetFocus,
   onPlanetClick,
@@ -33,6 +36,7 @@ export function UniverseCanvas({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const callbacksRef = useRef({ onMove, onPlanetFocus, onPlanetClick });
   const participantsRef = useRef({ self, peers });
+  const messagesRef = useRef(messages);
   const sceneRef = useRef<SceneBridge | null>(null);
 
   useEffect(() => {
@@ -43,6 +47,11 @@ export function UniverseCanvas({
     participantsRef.current = { self, peers };
     sceneRef.current?.syncParticipants(self, peers);
   }, [self, peers]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+    sceneRef.current?.syncMessages(messages);
+  }, [messages]);
 
   useEffect(() => {
     let destroyed = false;
@@ -80,6 +89,16 @@ export function UniverseCanvas({
         private activePlanetId: PlanetTrack["id"] | null = null;
         private selectedPlanet: PlanetTrack | null = null;
         private lastSentAt = 0;
+        private displayedMessageIds = new Set<string>();
+        private initializedMessages = false;
+        private speechBubbles = new Map<
+          string,
+          {
+            container: Phaser.GameObjects.Container;
+            participantId: string;
+          }
+        >();
+        private participantBubbleIds = new Map<string, string>();
 
         constructor() {
           super("space");
@@ -89,6 +108,10 @@ export function UniverseCanvas({
           for (const avatar of AVATARS) {
             this.load.image(this.avatarTextureKey(avatar.id, "idle"), avatar.idlePath);
             this.load.image(this.avatarTextureKey(avatar.id, "walk"), avatar.walkPath);
+          }
+
+          for (const planet of PLANETS) {
+            this.load.image(this.planetTextureKey(planet.id), planet.imagePath);
           }
         }
 
@@ -100,6 +123,7 @@ export function UniverseCanvas({
           this.drawBackground();
           this.drawPlanets();
           this.createLocalPlayer();
+          this.syncMessages(messagesRef.current);
 
           this.cursors = this.input.keyboard?.createCursorKeys();
           this.keys = this.input.keyboard?.addKeys("W,A,S,D") as
@@ -194,6 +218,8 @@ export function UniverseCanvas({
               activePlanetId: this.activePlanetId,
             });
           }
+
+          this.updateSpeechBubblePositions();
         }
 
         syncParticipants(nextSelf: Participant, nextPeers: Participant[]) {
@@ -226,6 +252,7 @@ export function UniverseCanvas({
               objects.avatar.destroy();
               objects.marker.destroy();
               objects.label.destroy();
+              this.clearSpeechBubbleForParticipant(peerId);
               this.peerObjects.delete(peerId);
             }
           }
@@ -276,6 +303,158 @@ export function UniverseCanvas({
 
             this.peerObjects.set(peer.id, { avatar, marker, label });
           }
+
+          this.updateSpeechBubblePositions();
+        }
+
+        syncMessages(nextMessages: ChatMessage[]) {
+          if (!this.initializedMessages) {
+            for (const message of nextMessages) {
+              this.displayedMessageIds.add(message.id);
+            }
+            this.initializedMessages = true;
+            return;
+          }
+
+          for (const message of nextMessages.slice(-12)) {
+            if (message.moderationStatus !== "allowed" || this.displayedMessageIds.has(message.id)) {
+              continue;
+            }
+
+            this.displayedMessageIds.add(message.id);
+            this.showSpeechBubble(message);
+          }
+
+          if (this.displayedMessageIds.size > 140) {
+            const recentIds = new Set(nextMessages.slice(-80).map((message) => message.id));
+            for (const messageId of this.displayedMessageIds) {
+              if (!recentIds.has(messageId)) {
+                this.displayedMessageIds.delete(messageId);
+              }
+            }
+          }
+        }
+
+        private showSpeechBubble(message: ChatMessage) {
+          const position = this.getParticipantPosition(message.participantId);
+          if (!position) {
+            return;
+          }
+
+          const previousMessageId = this.participantBubbleIds.get(message.participantId);
+          if (previousMessageId) {
+            this.destroySpeechBubble(previousMessageId);
+          }
+
+          const text = this.add
+            .text(0, 0, this.formatSpeechBody(message.body), {
+              align: "center",
+              color: "#f8fafc",
+              fontSize: "14px",
+              fontFamily: "Arial, sans-serif",
+              lineSpacing: 3,
+              wordWrap: { width: 184, useAdvancedWrap: true },
+            })
+            .setOrigin(0.5);
+
+          const width = Math.min(236, Math.max(118, text.width + 30));
+          const height = Math.min(98, Math.max(48, text.height + 22));
+          text.setPosition(0, -height / 2);
+
+          const bubble = this.add.graphics();
+          bubble.fillStyle(0x04101f, 0.9);
+          bubble.lineStyle(2, 0x9ed9ff, 0.72);
+          bubble.fillRoundedRect(-width / 2, -height, width, height, 14);
+          bubble.strokeRoundedRect(-width / 2, -height, width, height, 14);
+          bubble.fillTriangle(-12, -1, 12, -1, 0, 16);
+
+          const container = this.add
+            .container(position.x, position.y - 104, [bubble, text])
+            .setDepth(13)
+            .setAlpha(0)
+            .setScale(0.92);
+
+          this.speechBubbles.set(message.id, {
+            container,
+            participantId: message.participantId,
+          });
+          this.participantBubbleIds.set(message.participantId, message.id);
+          this.tweens.add({
+            targets: container,
+            alpha: 1,
+            scale: 1,
+            duration: 180,
+            ease: "Back.Out",
+          });
+          this.time.delayedCall(5000, () => this.fadeOutSpeechBubble(message.id));
+        }
+
+        private updateSpeechBubblePositions() {
+          for (const bubble of this.speechBubbles.values()) {
+            const position = this.getParticipantPosition(bubble.participantId);
+            if (position) {
+              bubble.container.setPosition(position.x, position.y - 104);
+            }
+          }
+        }
+
+        private getParticipantPosition(participantId: string) {
+          const { self: currentSelf, peers: currentPeers } = participantsRef.current;
+          if (currentSelf.id === participantId) {
+            return this.localAvatar
+              ? { x: this.localAvatar.x, y: this.localAvatar.y }
+              : { x: currentSelf.x, y: currentSelf.y };
+          }
+
+          const peerObject = this.peerObjects.get(participantId);
+          if (peerObject) {
+            return { x: peerObject.avatar.x, y: peerObject.avatar.y };
+          }
+
+          const peer = currentPeers.find((candidate) => candidate.id === participantId);
+          return peer ? { x: peer.x, y: peer.y } : null;
+        }
+
+        private fadeOutSpeechBubble(messageId: string) {
+          const bubble = this.speechBubbles.get(messageId);
+          if (!bubble) {
+            return;
+          }
+
+          this.tweens.add({
+            targets: bubble.container,
+            alpha: 0,
+            scale: 0.96,
+            duration: 300,
+            ease: "Sine.easeInOut",
+            onComplete: () => this.destroySpeechBubble(messageId),
+          });
+        }
+
+        private destroySpeechBubble(messageId: string) {
+          const bubble = this.speechBubbles.get(messageId);
+          if (!bubble) {
+            return;
+          }
+
+          this.tweens.killTweensOf(bubble.container);
+          bubble.container.destroy(true);
+          this.speechBubbles.delete(messageId);
+          if (this.participantBubbleIds.get(bubble.participantId) === messageId) {
+            this.participantBubbleIds.delete(bubble.participantId);
+          }
+        }
+
+        private clearSpeechBubbleForParticipant(participantId: string) {
+          const messageId = this.participantBubbleIds.get(participantId);
+          if (messageId) {
+            this.destroySpeechBubble(messageId);
+          }
+        }
+
+        private formatSpeechBody(body: string) {
+          const compactBody = body.replace(/\s+/g, " ").trim();
+          return compactBody.length > 58 ? `${compactBody.slice(0, 57)}...` : compactBody;
         }
 
         private drawBackground() {
@@ -306,39 +485,40 @@ export function UniverseCanvas({
               .setDepth(2);
             activation.setInteractive({ useHandCursor: true });
 
+            const planetColor = Phaser.Display.Color.HexStringToColor(planet.color).color;
+            const accentColor = Phaser.Display.Color.HexStringToColor(planet.accent).color;
+            const isSaturn = planet.id === "saturn";
+            const bodyWidth = isSaturn ? planet.radius * 4.4 : planet.radius * 2.3;
+            const bodyHeight = isSaturn ? planet.radius * 2.45 : planet.radius * 2.3;
+
+            const glow = this.add
+              .circle(planet.x, planet.y, planet.radius * 1.36, planetColor, 0.2)
+              .setStrokeStyle(2, accentColor, 0.34)
+              .setDepth(3);
+
             const body = this.add
-              .circle(
-                planet.x,
-                planet.y,
-                planet.radius,
-                Phaser.Display.Color.HexStringToColor(planet.color).color,
-                1,
-              )
-              .setStrokeStyle(
-                4,
-                Phaser.Display.Color.HexStringToColor(planet.accent).color,
-                0.55,
-              )
+              .image(planet.x, planet.y, this.planetTextureKey(planet.id))
+              .setDisplaySize(bodyWidth, bodyHeight)
               .setDepth(4);
             body.setInteractive({ useHandCursor: true });
 
-            if (planet.id === "saturn") {
+            if (isSaturn) {
               this.add
                 .ellipse(
                   planet.x,
                   planet.y,
-                  planet.radius * 2.9,
-                  planet.radius * 0.85,
+                  planet.radius * 4.08,
+                  planet.radius * 1.34,
                   0xffffff,
                   0,
                 )
-                .setStrokeStyle(8, 0xfff0ba, 0.58)
+                .setStrokeStyle(2, accentColor, 0.46)
                 .setAngle(-12)
                 .setDepth(3);
             }
 
             const label = this.add
-              .text(planet.x, planet.y + planet.radius + 17, planet.name, {
+              .text(planet.x, planet.y + bodyHeight / 2 + 17, planet.name, {
                 color: "#f8fafc",
                 fontSize: "17px",
                 fontFamily: "Arial, sans-serif",
@@ -364,6 +544,7 @@ export function UniverseCanvas({
 
             body.on("pointerdown", clickHandler);
             activation.on("pointerdown", clickHandler);
+            glow.setInteractive({ useHandCursor: true }).on("pointerdown", clickHandler);
             label.setInteractive({ useHandCursor: true }).on("pointerdown", clickHandler);
           }
         }
@@ -405,6 +586,10 @@ export function UniverseCanvas({
 
         private avatarTextureKey(avatarId: AvatarId, pose: "idle" | "walk") {
           return `avatar-${avatarId}-${pose}`;
+        }
+
+        private planetTextureKey(planetId: PlanetTrack["id"]) {
+          return `planet-${planetId}`;
         }
       }
 
