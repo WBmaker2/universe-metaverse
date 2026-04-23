@@ -106,17 +106,20 @@ export function UniverseCanvas({
             | Record<string, Phaser.Input.Keyboard.Key>
             | undefined;
 
-          this.input.on(
-            "pointerdown",
-            (pointer: Phaser.Input.Pointer, hoveredObjects: Phaser.GameObjects.GameObject[]) => {
-              if (hoveredObjects.length === 0) {
-                this.selectedPlanet = null;
-              }
+          this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+            const clickedPlanet = PLANETS.find(
+              (planet) =>
+                Phaser.Math.Distance.Between(worldPoint.x, worldPoint.y, planet.x, planet.y) <=
+                planet.activationRadius,
+            );
 
-              const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-              this.moveTarget = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
-            },
-          );
+            if (!clickedPlanet) {
+              this.selectedPlanet = null;
+            }
+
+            this.moveTarget = new Phaser.Math.Vector2(worldPoint.x, worldPoint.y);
+          });
         }
 
         update(_time: number, delta: number) {
