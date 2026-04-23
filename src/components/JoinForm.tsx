@@ -23,12 +23,17 @@ export function JoinForm() {
 
     try {
       const normalizedCode = code.trim().toUpperCase();
-      const response = await fetch(`/api/sessions/${normalizedCode}/join`, {
-        method: "POST",
+      const response = await fetch("/api/sessions", {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, avatarId }),
+        body: JSON.stringify({
+          action: "join",
+          code: normalizedCode,
+          name,
+          avatarId,
+        }),
       });
 
       const data = (await response.json()) as JoinResponse | { error: string };

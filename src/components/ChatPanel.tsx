@@ -27,12 +27,14 @@ export function ChatPanel({ code, participantId, messages, onSent }: ChatPanelPr
       return;
     }
 
-    const response = await fetch(`/api/sessions/${code}/chat`, {
-      method: "POST",
+    const response = await fetch("/api/sessions", {
+      method: "PATCH",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        action: "chat",
+        code,
         participantId,
         body: moderation.sanitized,
       }),

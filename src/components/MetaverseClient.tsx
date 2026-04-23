@@ -72,7 +72,7 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
   const participantCount = roomState?.participants.length ?? (self ? 1 : 0);
 
   const fetchState = useCallback(async () => {
-    const response = await fetch(`/api/sessions/${code}/state`, {
+    const response = await fetch(`/api/sessions?code=${encodeURIComponent(code)}`, {
       cache: "no-store",
     });
 
@@ -156,12 +156,14 @@ export function MetaverseClient({ code }: MetaverseClientProps) {
         };
       });
 
-      void fetch(`/api/sessions/${code}/state`, {
-        method: "POST",
+      void fetch("/api/sessions", {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          action: "update-participant",
+          code,
           participantId: joinInfo.participant.id,
           x: snapshot.x,
           y: snapshot.y,
