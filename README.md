@@ -23,6 +23,14 @@ npm run dev
 - 기본 비속어 필터
 - Firebase Realtime Database 연결을 위한 클라이언트 설정과 보안 규칙 초안
 
+## 문서
+
+- [프로젝트 진행 기록](docs/PROJECT_PROGRESS.md)
+- [구현 계획](docs/IMPLEMENTATION_PLAN.md)
+- [캐릭터 아바타 계획](docs/CHARACTER_AVATAR_PLAN.md)
+- [에셋 출처](docs/ASSET_CREDITS.md)
+- [행성 이미지 출처](docs/PLANET_IMAGE_SOURCES.md)
+
 ## 로컬 데모 방식
 
 현재 MVP는 Firebase 프로젝트 없이도 체험할 수 있도록 Next.js Route Handler와 서버 메모리 저장소를 사용합니다. 개발 서버를 재시작하면 생성된 세션과 채팅 기록은 초기화됩니다.
