@@ -28,7 +28,9 @@ await page.getByRole("button", { name: "은빛 로봇" }).click();
 await page.getByRole("button", { name: /우주 입장/ }).click();
 await page.waitForURL(new RegExp(`/room/${code}`));
 await page.waitForSelector("canvas", { timeout: 8000 });
+await page.waitForTimeout(1200);
 await page.getByRole("button", { name: /오디오 켜기/ }).click();
+await page.waitForTimeout(300);
 await page.locator("canvas").click({ position: { x: 240, y: 257 } });
 await page.waitForTimeout(700);
 
