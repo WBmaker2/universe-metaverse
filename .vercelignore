@@ -1,15 +1,6 @@
-node_modules
-.next
-.vercel
-out
-dist
-build
-.env
-.env*.local
-*.log
-.DS_Store
+public/audio
 .asset-cache
 artifacts
 [비상교육] 초등_음악(주) 6_1-8_음원
 *초등_음악*
-]+.zip
+*.zip
